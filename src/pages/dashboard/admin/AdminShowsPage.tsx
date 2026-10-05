@@ -420,29 +420,32 @@ export function AdminShowsPage() {
     const movie = getMovie(show);
     const start = formatDate(show.start_time);
     const confirmed = window.confirm(
-      `Delete the ${movie?.title || 'movie'} show on ${start}?`,
+      `Delete the ${movie?.title || 'movie'} show on ${start}?\n\nThis will permanently delete the show and any bookings, booked seats, and payment intents associated with it. This action cannot be undone.`,
     );
 
     if (!confirmed) return;
 
     setError(null);
     setNotice(null);
+    setSaving(true);
 
     try {
-      const { error: deleteError } = await supabase
-        .from('shows')
-        .delete()
-        .eq('id', show.id);
+      const { error: deleteError } = await supabase.rpc(
+        'admin_delete_show',
+        { p_show_id: show.id },
+      );
 
       if (deleteError) throw deleteError;
 
-      setNotice('Show deleted successfully.');
+      setNotice('Show and associated booking records deleted successfully.');
       await loadData();
     } catch (err) {
       console.error('Failed to delete show:', err);
       setError(
         err instanceof Error ? err.message : 'Unable to delete the show.',
       );
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -628,18 +631,16 @@ export function AdminShowsPage() {
                 </Field>
 
                 <Field label="Format">
-<select
-  value={form.format}
-  onChange={(event) => updateForm('format', event.target.value)}
-  className={inputClassName()}
->
-  <option value="2D">2D</option>
-  <option value="3D">3D</option>
-  <option value="IMAX">IMAX</option>
-  <option value="IMAX 3D">IMAX 3D</option>
-  <option value="4DX">4DX</option>
-  <option value="EPIC">EPIC</option>
-</select>
+                  <select
+                    value={form.format}
+                    onChange={(event) => updateForm('format', event.target.value)}
+                    className={inputClassName()}
+                  >
+                    <option value="2D">2D</option>
+                    <option value="3D">3D</option>
+                    <option value="IMAX">IMAX</option>
+                    <option value="IMAX 3D">IMAX 3D</option>
+                  </select>
                 </Field>
 
                 <Field label="Status">
