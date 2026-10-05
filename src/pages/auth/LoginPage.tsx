@@ -136,9 +136,9 @@ export function LoginPage() {
         }
       );
 
-      navigate(destination, {
-        replace: true,
-      });
+      navigate('/', {
+  replace: true,
+});
     } catch (err) {
       console.error(
         'Login failed:',

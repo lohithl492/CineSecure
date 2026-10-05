@@ -55,7 +55,7 @@ function wait(ms: number) {
 
 function readStoredUser(): User | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.user);
+    const raw = sessionStorage.getItem(STORAGE_KEYS.user);
 
     return raw ? (JSON.parse(raw) as User) : null;
   } catch {
@@ -64,14 +64,14 @@ function readStoredUser(): User | null {
 }
 
 function persistUser(user: User) {
-  localStorage.setItem(
+  sessionStorage.setItem(
     STORAGE_KEYS.user,
     JSON.stringify(user)
   );
 }
 
 function clearStoredUser() {
-  localStorage.removeItem(STORAGE_KEYS.user);
+  sessionStorage.removeItem(STORAGE_KEYS.user);
 }
 
 /* ============================================================
@@ -521,7 +521,7 @@ export function AuthProvider({
         setStatus('unauthenticated');
         clearStoredUser();
 
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'local' });
 
         throw new Error(
           'Unable to load your account. Please try signing in again.'
@@ -540,7 +540,7 @@ export function AuthProvider({
       authOperationRef.current += 1;
 
       const { error } =
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'local' });
 
       if (error) {
         throw error;

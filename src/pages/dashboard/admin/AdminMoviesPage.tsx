@@ -30,7 +30,7 @@ interface AdminMovie {
   backdrop_url: string | null;
   genre: string[] | null;
   language: string;
-  duration_minutes: number;
+  duration_minutes: number | null;
   certificate: string | null;
   release_date: string | null;
   rating: number | null;
@@ -300,14 +300,20 @@ export function AdminMoviesPage() {
     try {
       const title = form.title.trim();
       const language = form.language.trim();
-      const duration = Number(form.duration_minutes);
+      const duration =
+  form.duration_minutes.trim() === ''
+    ? null
+    : Number(form.duration_minutes);
       const rating = form.rating.trim() === '' ? null : Number(form.rating);
 
       if (!title) throw new Error('Movie title is required.');
       if (!language) throw new Error('Language is required.');
-      if (!Number.isFinite(duration) || duration <= 0) {
-        throw new Error('Enter a valid runtime in minutes.');
-      }
+      if (
+  duration !== null &&
+  (!Number.isFinite(duration) || duration <= 0)
+) {
+  throw new Error('Enter a valid runtime in minutes.');
+}
       if (rating !== null && (!Number.isFinite(rating) || rating < 0 || rating > 10)) {
         throw new Error('Rating must be between 0 and 10.');
       }
@@ -336,7 +342,7 @@ export function AdminMoviesPage() {
         backdrop_url: form.backdrop_url.trim() || null,
         genre: genre.length > 0 ? genre : null,
         language,
-        duration_minutes: Math.round(duration),
+        duration_minutes: duration === null ? null : Math.round(duration),
         certificate: form.certificate.trim() || null,
         release_date: form.release_date || null,
         rating,
@@ -584,16 +590,20 @@ export function AdminMoviesPage() {
 
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Input
-                  label="Runtime (min)"
-                  name="duration_minutes"
-                  type="number"
-                  min="1"
-                  value={form.duration_minutes}
-                  onChange={(event) => setForm((current) => ({ ...current, duration_minutes: event.target.value }))}
-                  placeholder="148"
-                  icon={<Clock3 className="h-4 w-4" />}
-                  required
-                />
+  label="Runtime (min)"
+  name="duration_minutes"
+  type="number"
+  min="1"
+  value={form.duration_minutes}
+  onChange={(event) =>
+    setForm((current) => ({
+      ...current,
+      duration_minutes: event.target.value
+    }))
+  }
+  placeholder="Runtime not announced"
+  icon={<Clock3 className="h-4 w-4" />}
+/>
                 <div>
                   <label className="block text-sm font-medium text-ink-200">Certificate</label>
                   <select
@@ -773,7 +783,11 @@ export function AdminMoviesPage() {
                     <span className="h-1 w-1 rounded-full bg-white/20" />
                     <span>{movie.language}</span>
                     <span className="h-1 w-1 rounded-full bg-white/20" />
-                    <span>{formatDuration(movie.duration_minutes)}</span>
+                    <span>
+  {movie.duration_minutes == null
+    ? 'Runtime not set'
+    : formatDuration(movie.duration_minutes)}
+</span>
                     {movie.certificate && <><span className="h-1 w-1 rounded-full bg-white/20" /><span>{movie.certificate}</span></>}
                     {movie.rating != null && <><span className="h-1 w-1 rounded-full bg-white/20" /><span className="inline-flex items-center gap-1"><Star className="h-3 w-3" />{movie.rating}/10</span></>}
                   </div>

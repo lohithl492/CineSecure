@@ -20,6 +20,7 @@ export const supabase: SupabaseClient = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      storage: sessionStorage,
       storageKey: `${APP_CONFIG.name.toLowerCase()}-auth`,
     },
   }
