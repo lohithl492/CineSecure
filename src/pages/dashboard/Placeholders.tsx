@@ -23,13 +23,170 @@ import {
    ADMIN / OWNER PAGES
    ========================================================= */
 
-export const AdminUsersPage = () => (
-  <CleanPlaceholder
-    title="Users"
-    description="Manage registered CineSecure users."
-    icon={Users}
-  />
-);
+interface AdminUser {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  role: string | null;
+  created_at: string | null;
+}
+
+export function AdminUsersPage() {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  async function loadUsers() {
+    setLoading(true);
+    setError(null);
+
+    const { data, error: queryError } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, role, created_at')
+      .eq('role', 'customer')
+      .order('created_at', {
+        ascending: false,
+      });
+
+    if (queryError) {
+      console.error('Failed to load users:', queryError);
+      setUsers([]);
+      setError(queryError.message);
+    } else {
+      setUsers((data ?? []) as AdminUser[]);
+    }
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    void loadUsers();
+  }, []);
+
+  return (
+    <div className="space-y-6 animate-fadeIn">
+      <div>
+        <Badge
+          tone="primary"
+          variant="soft"
+        >
+          CineSecure
+        </Badge>
+
+        <h1 className="mt-3 font-display text-3xl font-bold text-ink-50">
+          Users
+        </h1>
+
+        <p className="mt-1 text-ink-400">
+          Manage registered CineSecure customers.
+        </p>
+      </div>
+
+      <Card>
+        {loading ? (
+          <Spinner className="py-12" />
+        ) : error ? (
+          <div className="rounded-xl border border-error-500/20 bg-error-500/5 p-5 text-sm text-error-300">
+            <p>{error}</p>
+
+            <button
+              onClick={() => void loadUsers()}
+              className="mt-2 font-semibold underline"
+            >
+              Try again
+            </button>
+          </div>
+        ) : users.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-14 text-center">
+            <Users className="mx-auto h-11 w-11 text-ink-600" />
+
+            <h2 className="mt-4 font-display text-xl font-semibold text-ink-100">
+              No customers found
+            </h2>
+
+            <p className="mx-auto mt-2 max-w-md text-sm text-ink-500">
+              Registered customer accounts will appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px]">
+              <thead>
+                <tr className="border-b border-white/10 text-left text-xs uppercase tracking-wider text-ink-500">
+                  <th className="px-5 py-4 font-medium">
+                    Name
+                  </th>
+
+                  <th className="px-5 py-4 font-medium">
+                    Email
+                  </th>
+
+                  <th className="px-5 py-4 font-medium">
+                    Role
+                  </th>
+
+                  <th className="px-5 py-4 font-medium">
+                    Registered
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {users.map((customer) => (
+                  <tr
+                    key={customer.id}
+                    className="border-b border-white/5 transition hover:bg-white/[0.025]"
+                  >
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-500/10 font-semibold text-primary-300">
+                          {(customer.full_name?.[0] ??
+                            customer.email?.[0] ??
+                            'U'
+                          ).toUpperCase()}
+                        </div>
+
+                        <div>
+                          <p className="font-medium text-ink-100">
+                            {customer.full_name ||
+                              'Unnamed user'}
+                          </p>
+
+                          <p className="text-xs text-ink-600">
+                            Customer
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4 text-sm text-ink-300">
+                      {customer.email || 'No email'}
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <Badge
+                        tone="primary"
+                        variant="soft"
+                      >
+                        Customer
+                      </Badge>
+                    </td>
+
+                    <td className="px-5 py-4 text-sm text-ink-400">
+                      {customer.created_at
+                        ? formatDate(customer.created_at)
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
 
 export const AdminMoviesPage = () => (
   <CleanPlaceholder
