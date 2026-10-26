@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   User as UserIcon,
+  BookOpen,
 } from 'lucide-react';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,24 +30,100 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   // Admin
-  { to: '/dashboard/admin', label: 'Overview', icon: LayoutDashboard, roles: ['admin'] },
-  { to: '/dashboard/admin/users', label: 'Users', icon: Users, roles: ['admin'] },
-  { to: '/dashboard/admin/movies', label: 'Movies', icon: Film, roles: ['admin'] },
-  { to: '/dashboard/admin/theaters', label: 'Theaters', icon: Building2, roles: ['admin'] },
-  { to: '/dashboard/admin/shows', label: 'Shows', icon: CalendarDays, roles: ['admin'] },
-  { to: '/dashboard/admin/reports', label: 'Reports', icon: BarChart3, roles: ['admin'] },
-  { to: '/dashboard/admin/security', label: 'Security', icon: ShieldAlert, roles: ['admin'] },
+  {
+    to: '/dashboard/admin',
+    label: 'Overview',
+    icon: LayoutDashboard,
+    roles: ['admin'],
+  },
+  {
+    to: '/dashboard/admin/users',
+    label: 'Users',
+    icon: Users,
+    roles: ['admin'],
+  },
+  {
+    to: '/dashboard/admin/movies',
+    label: 'Movies',
+    icon: Film,
+    roles: ['admin'],
+  },
+  {
+    to: '/dashboard/admin/theaters',
+    label: 'Theaters',
+    icon: Building2,
+    roles: ['admin'],
+  },
+  {
+    to: '/dashboard/admin/shows',
+    label: 'Shows',
+    icon: CalendarDays,
+    roles: ['admin'],
+  },
+  {
+    to: '/dashboard/admin/reports',
+    label: 'Reports',
+    icon: BarChart3,
+    roles: ['admin'],
+  },
+  {
+    to: '/dashboard/admin/security',
+    label: 'Security',
+    icon: ShieldAlert,
+    roles: ['admin'],
+  },
 
   // Theater owner
-  { to: '/dashboard/owner', label: 'Overview', icon: LayoutDashboard, roles: ['owner'] },
-  { to: '/dashboard/owner/theaters', label: 'Theaters', icon: Building2, roles: ['owner'] },
-  { to: '/dashboard/owner/shows', label: 'Shows', icon: CalendarDays, roles: ['owner'] },
-  { to: '/dashboard/owner/bookings', label: 'Bookings', icon: Ticket, roles: ['owner'] },
+  {
+    to: '/dashboard/owner',
+    label: 'Overview',
+    icon: LayoutDashboard,
+    roles: ['owner'],
+  },
+  {
+    to: '/dashboard/owner/theaters',
+    label: 'Theaters',
+    icon: Building2,
+    roles: ['owner'],
+  },
+  {
+    to: '/dashboard/owner/shows',
+    label: 'Shows',
+    icon: CalendarDays,
+    roles: ['owner'],
+  },
+  {
+    to: '/dashboard/owner/bookings',
+    label: 'Bookings',
+    icon: Ticket,
+    roles: ['owner'],
+  },
 
   // Customer
-  { to: '/dashboard/customer', label: 'Overview', icon: LayoutDashboard, roles: ['customer'] },
-  { to: '/dashboard/customer/bookings', label: 'My Bookings', icon: Ticket, roles: ['customer'] },
-  { to: '/dashboard/customer/history', label: 'History', icon: BarChart3, roles: ['customer'] },
+  {
+    to: '/dashboard/customer',
+    label: 'Overview',
+    icon: LayoutDashboard,
+    roles: ['customer'],
+  },
+  {
+    to: '/dashboard/customer/bookings',
+    label: 'My Bookings',
+    icon: Ticket,
+    roles: ['customer'],
+  },
+  {
+    to: '/dashboard/customer/history',
+    label: 'History',
+    icon: BarChart3,
+    roles: ['customer'],
+  },
+  {
+    to: '/dashboard/customer/security-awareness',
+    label: 'Security Awareness',
+    icon: BookOpen,
+    roles: ['customer'],
+  },
 ];
 
 const roleLabel: Record<UserRole, string> = {
@@ -60,7 +137,9 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
-  const items = NAV.filter((item) => user && item.roles.includes(user.role));
+  const items = NAV.filter(
+    (item) => user && item.roles.includes(user.role),
+  );
 
   const handleSignOut = async () => {
     await signOut();
@@ -69,6 +148,7 @@ export function DashboardLayout() {
 
   return (
     <div className="min-h-screen flex bg-ink-950">
+      {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-64 flex-col border-r border-white/10 bg-ink-900/50 backdrop-blur-xl">
         <div className="h-16 flex items-center px-5 border-b border-white/10">
           <Logo />
@@ -84,6 +164,7 @@ export function DashboardLayout() {
               <p className="text-sm font-semibold text-ink-100 truncate">
                 {user?.name}
               </p>
+
               <p className="text-xs text-ink-500">
                 {user ? roleLabel[user.role] : ''}
               </p>
@@ -116,6 +197,7 @@ export function DashboardLayout() {
         </div>
       </aside>
 
+      {/* Mobile navigation */}
       {open && (
         <div className="lg:hidden fixed inset-0 z-50">
           <div
@@ -159,6 +241,7 @@ export function DashboardLayout() {
         </div>
       )}
 
+      {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 sticky top-0 z-40 flex items-center justify-between gap-4 border-b border-white/10 bg-ink-900/60 backdrop-blur-xl px-4 sm:px-6">
           <button
@@ -172,7 +255,9 @@ export function DashboardLayout() {
           <div className="hidden lg:block">
             <p className="text-sm text-ink-400">
               Welcome back,{' '}
-              <span className="text-ink-100 font-medium">{user?.name}</span>
+              <span className="text-ink-100 font-medium">
+                {user?.name}
+              </span>
             </p>
           </div>
 
