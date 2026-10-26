@@ -22,6 +22,7 @@ interface Movie {
   title: string;
   duration_minutes: number | null;
   language: string | null;
+  status: string;
 }
 
 interface Theater {
@@ -146,6 +147,11 @@ export function AdminShowsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
 
+  const availableMovies = useMemo(
+    () => movies.filter((movie) => movie.status === 'now_showing' && Number(movie.duration_minutes) > 0),
+    [movies],
+  );
+
   const filteredScreens = useMemo(
     () => screens.filter((screen) => screen.theater_id === form.theaterId),
     [screens, form.theaterId],
@@ -202,7 +208,7 @@ export function AdminShowsPage() {
         await Promise.all([
           supabase
             .from('movies')
-            .select('id, title, duration_minutes, language')
+            .select('id, title, duration_minutes, language, status')
             .order('title', { ascending: true }),
           supabase
             .from('theaters')
@@ -264,7 +270,7 @@ export function AdminShowsPage() {
   }
 
   function openAddForm() {
-    const firstMovie = movies[0];
+    const firstMovie = availableMovies[0];
     const firstTheater = theaters[0];
     const firstScreen = screens.find(
       (screen) => screen.theater_id === firstTheater?.id,
@@ -339,7 +345,6 @@ export function AdminShowsPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     setError(null);
     setNotice(null);
 
@@ -348,21 +353,14 @@ export function AdminShowsPage() {
       return;
     }
 
-    if (!form.date || !form.startTime || !form.endTime) {
-      setError('Select the show date, start time and end time.');
+    const selectedMovie = movies.find((movie) => movie.id === form.movieId);
+    if (!editingId && (!selectedMovie || selectedMovie.status !== 'now_showing' || !selectedMovie.duration_minutes)) {
+      setError('Only movies marked Now Showing with a valid runtime can be scheduled.');
       return;
     }
 
-    const start = new Date(`${form.date}T${form.startTime}:00`);
-    const end = new Date(`${form.date}T${form.endTime}:00`);
-
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      setError('Enter a valid date and time.');
-      return;
-    }
-
-    if (end <= start) {
-      setError('End time must be later than the start time.');
+    if (!form.date) {
+      setError('Select the starting date.');
       return;
     }
 
@@ -373,44 +371,52 @@ export function AdminShowsPage() {
     }
 
     setSaving(true);
-
     try {
-      const payload = {
-        movie_id: form.movieId,
-        screen_id: form.screenId,
-        start_time: toIso(form.date, form.startTime),
-        end_time: toIso(form.date, form.endTime),
-        base_price: price,
-        language: form.language.trim() || null,
-        format: form.format.trim() || null,
-        status: form.status,
-      };
+      if (!editingId) {
+        const { data, error: scheduleError } = await supabase.rpc('admin_create_show_schedule', {
+          p_movie_id: form.movieId,
+          p_screen_id: form.screenId,
+          p_start_date: form.date,
+          p_base_price: price,
+          p_language: form.language.trim() || selectedMovie?.language || null,
+          p_format: form.format.trim() || '2D',
+        });
+        if (scheduleError) throw scheduleError;
 
-      if (editingId) {
-        const { error: updateError } = await supabase
-          .from('shows')
-          .update(payload)
-          .eq('id', editingId);
-
+        const created = Number(data ?? 0);
+        setNotice(`Schedule saved. ${created} show(s) generated for the next 7 days. Conflicting or past time slots were skipped.`);
+      } else {
+        if (!form.startTime || !form.endTime) {
+          setError('Select the show start and end times.');
+          return;
+        }
+        const start = new Date(`${form.date}T${form.startTime}:00`);
+        const end = new Date(`${form.date}T${form.endTime}:00`);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+          setError('Enter a valid show date and ensure the end time is later than the start time.');
+          return;
+        }
+        const payload = {
+          movie_id: form.movieId,
+          screen_id: form.screenId,
+          start_time: toIso(form.date, form.startTime),
+          end_time: toIso(form.date, form.endTime),
+          base_price: price,
+          language: form.language.trim() || null,
+          format: form.format.trim() || null,
+          status: form.status,
+        };
+        const { error: updateError } = await supabase.from('shows').update(payload).eq('id', editingId);
         if (updateError) throw updateError;
         setNotice('Show updated successfully.');
-      } else {
-        const { error: insertError } = await supabase
-          .from('shows')
-          .insert(payload);
-
-        if (insertError) throw insertError;
-        setNotice('Show added successfully.');
       }
 
       setShowForm(false);
       setEditingId(null);
       await loadData();
     } catch (err) {
-      console.error('Failed to save show:', err);
-      setError(
-        err instanceof Error ? err.message : 'Unable to save the show.',
-      );
+      console.error('Failed to save show schedule:', err);
+      setError(err instanceof Error ? err.message : 'Unable to save the show schedule.');
     } finally {
       setSaving(false);
     }
@@ -481,7 +487,7 @@ export function AdminShowsPage() {
                 <RefreshCw className="h-4 w-4" />
                 Refresh
               </Button>
-              <Button onClick={openAddForm} disabled={movies.length === 0 || theaters.length === 0 || screens.length === 0}>
+              <Button onClick={openAddForm} disabled={availableMovies.length === 0 || theaters.length === 0 || screens.length === 0}>
                 <Plus className="h-4 w-4" />
                 Add show
               </Button>
@@ -533,10 +539,10 @@ export function AdminShowsPage() {
                     className={inputClassName()}
                     required
                   >
-                    <option value="">Select movie</option>
-                    {movies.map((movie) => (
+                    <option value="">{editingId ? 'Select movie' : 'Select a Now Showing movie'}</option>
+                    {(editingId ? movies : availableMovies).map((movie) => (
                       <option key={movie.id} value={movie.id}>
-                        {movie.title}
+                        {movie.title}{!editingId ? ` · ${movie.duration_minutes} min` : ''}
                       </option>
                     ))}
                   </select>
@@ -587,7 +593,7 @@ export function AdminShowsPage() {
                   />
                 </Field>
 
-                <Field label="Start time">
+                {editingId && <Field label="Start time">
                   <input
                     type="time"
                     value={form.startTime}
@@ -595,9 +601,9 @@ export function AdminShowsPage() {
                     className={inputClassName()}
                     required
                   />
-                </Field>
+                </Field>}
 
-                <Field label="End time">
+                {editingId && <Field label="End time">
                   <input
                     type="time"
                     value={form.endTime}
@@ -605,7 +611,7 @@ export function AdminShowsPage() {
                     className={inputClassName()}
                     required
                   />
-                </Field>
+                </Field>}
 
                 <Field label="Base ticket price">
                   <input
@@ -643,7 +649,7 @@ export function AdminShowsPage() {
                   </select>
                 </Field>
 
-                <Field label="Status">
+                {editingId && <Field label="Status">
                   <select
                     value={form.status}
                     onChange={(event) => updateForm('status', event.target.value as ShowStatus)}
@@ -653,15 +659,21 @@ export function AdminShowsPage() {
                     <option value="cancelled">Cancelled</option>
                     <option value="inactive">Inactive</option>
                   </select>
-                </Field>
+                </Field>}
               </div>
+
+              {!editingId && (
+                <div className="mt-5 rounded-xl border border-primary-500/20 bg-primary-500/5 p-4 text-sm text-ink-300">
+                  Five daily showtimes will be generated for the next 7 days: <strong>9:30 AM, 12:30 PM, 3:30 PM, 6:30 PM and 9:30 PM</strong>. End times use the movie runtime. Upcoming movies are not eligible.
+                </div>
+              )}
 
               <div className="mt-7 flex justify-end gap-3 border-t border-white/10 pt-6">
                 <Button type="button" variant="outline" onClick={closeForm} disabled={saving}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={saving}>
-                  {saving ? 'Saving...' : editingId ? 'Save changes' : 'Add show'}
+                  {saving ? 'Saving...' : editingId ? 'Save changes' : 'Generate 7-day schedule'}
                 </Button>
               </div>
             </form>

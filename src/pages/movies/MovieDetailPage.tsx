@@ -53,6 +53,7 @@ export function MovieDetailPage() {
   const [shows, setShows] = useState<Show[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState('');
 
   useEffect(() => {
     if (!id) {
@@ -114,8 +115,45 @@ export function MovieDetailPage() {
   }
 
 const activeShows = useMemo(() => {
-  return shows.filter((show) => show.status !== 'cancelled');
+  const now = Date.now();
+  return shows.filter((show) => {
+    const start = new Date(show.start_time).getTime();
+    const status = (show.status || 'scheduled').toLowerCase();
+    return start > now && status === 'scheduled';
+  });
 }, [shows]);
+
+  const availableDates = useMemo(() => {
+    return Array.from(
+      new Set(
+        activeShows.map((show) => {
+          const date = new Date(show.start_time);
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        }),
+      ),
+    );
+  }, [activeShows]);
+
+  useEffect(() => {
+    if (availableDates.length === 0) {
+      setSelectedDate('');
+    } else if (!availableDates.includes(selectedDate)) {
+      setSelectedDate(availableDates[0]);
+    }
+  }, [availableDates, selectedDate]);
+
+  const selectedDateShows = useMemo(
+    () => activeShows.filter((show) => {
+      const date = new Date(show.start_time);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      return key === selectedDate;
+    }),
+    [activeShows, selectedDate],
+  );
+
   const genreText = formatGenre(movie?.genre ?? null);
 
   if (loading) {
@@ -317,60 +355,71 @@ const activeShows = useMemo(() => {
             </Link>
           </Card>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {activeShows.map((show) => (
-              <Card
-                key={show.id}
-                hover
-                className="border-white/10 bg-white/[0.035]"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-ink-500">
-                      {formatDate(show.start_time)}
-                    </p>
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.025]">
+            <div className="flex gap-2 overflow-x-auto border-b border-white/10 p-3 sm:p-4">
+              {availableDates.map((dateKey) => {
+                const date = new Date(`${dateKey}T12:00:00`);
+                const isSelected = dateKey === selectedDate;
+                const today = new Date();
+                const isToday = dateKey === `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                const isTomorrow = dateKey === `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
 
-                    <p className="mt-2 font-display text-2xl font-bold text-white">
-                      {formatTime(show.start_time)}
-                    </p>
-                  </div>
-
-                  {show.format && (
-                    <Badge tone="neutral" variant="outline">
-                      {show.format}
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="mt-5 border-t border-white/10 pt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-ink-500">Language</p>
-                      <p className="mt-1 text-sm font-medium text-ink-200">
-                        {show.language || movie.language || '—'}
-                      </p>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-xs text-ink-500">From</p>
-                      <p className="mt-1 text-sm font-bold text-primary-300">
-                        ₹{Number(show.base_price || 0).toLocaleString('en-IN')}
-                      </p>
-                    </div>
-                  </div>
-
-                  <Link
-                    to={`/booking/${show.id}/seats`}
-                    className="mt-5 block"
+                return (
+                  <button
+                    key={dateKey}
+                    type="button"
+                    onClick={() => setSelectedDate(dateKey)}
+                    className={`min-w-[76px] rounded-xl border px-4 py-3 text-center transition ${
+                      isSelected
+                        ? 'border-primary-500 bg-primary-500/15 text-white'
+                        : 'border-transparent bg-white/[0.035] text-ink-400 hover:border-white/10 hover:text-white'
+                    }`}
                   >
-                    <Button fullWidth>
-                      <Ticket className="h-4 w-4" />
-                      Select seats
-                    </Button>
-                  </Link>
+                    <span className="block text-[11px] font-semibold uppercase tracking-wider">
+                      {isToday ? 'Today' : isTomorrow ? 'Tomorrow' : date.toLocaleDateString('en-IN', { weekday: 'short' })}
+                    </span>
+                    <span className="mt-1 block text-lg font-bold">
+                      {date.toLocaleDateString('en-IN', { day: '2-digit' })}
+                    </span>
+                    <span className="block text-[11px] uppercase">
+                      {date.toLocaleDateString('en-IN', { month: 'short' })}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="p-4 sm:p-6">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <p className="text-sm font-medium text-ink-300">
+                  {selectedDate ? new Date(`${selectedDate}T12:00:00`).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Available showtimes'}
+                </p>
+                <span className="text-xs text-ink-500">
+                  {selectedDateShows.length} {selectedDateShows.length === 1 ? 'show' : 'shows'}
+                </span>
+              </div>
+
+              {selectedDateShows.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-ink-500">
+                  No showtimes available for this date.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  {selectedDateShows.map((show) => (
+                    <Link
+                      key={show.id}
+                      to={`/booking/${show.id}/seats`}
+                      aria-label={`Select ${formatTime(show.start_time)} show and choose seats`}
+                      className="group inline-flex min-w-[108px] items-center justify-center rounded-lg border border-emerald-500/35 bg-emerald-500/[0.06] px-5 py-3 text-sm font-semibold text-emerald-300 transition hover:border-primary-500 hover:bg-primary-500/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                    >
+                      {formatTime(show.start_time)}
+                    </Link>
+                  ))}
                 </div>
-              </Card>
-            ))}
+              )}
+            </div>
           </div>
         )}
       </section>

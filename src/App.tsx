@@ -27,12 +27,14 @@ import { SeatSelectionPage } from '@/pages/booking/SeatSelectionPage';
 import { BookingConfirmationPage } from '@/pages/booking/BookingConfirmationPage';
 
 import { CustomerDashboard } from '@/pages/dashboard/customer/CustomerDashboard';
+import { SecurityAwareness } from '@/pages/dashboard/customer/security-awareness/SecurityAwareness';
 
 import { AdminDashboard } from '@/pages/dashboard/admin/AdminDashboard';
 import { AdminMoviesPage } from '@/pages/dashboard/admin/AdminMoviesPage';
 import { AdminShowsPage } from '@/pages/dashboard/admin/AdminShowsPage';
 import { AdminTheatersPage } from '@/pages/dashboard/admin/AdminTheatersPage';
 import { AdminSecurityPage } from '@/pages/dashboard/admin/AdminSecurityPage';
+
 import { AccountPage } from '@/pages/account/AccountPage';
 
 import {
@@ -53,6 +55,7 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          {/* Public pages */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/movies" element={<MoviesPage />} />
@@ -62,11 +65,13 @@ export default function App() {
             <Route path="/forbidden" element={<ForbiddenPage />} />
           </Route>
 
+          {/* Authentication */}
           <Route element={<AuthLayout />}>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
           </Route>
 
+          {/* Account */}
           <Route
             path="/account"
             element={
@@ -78,6 +83,7 @@ export default function App() {
             <Route index element={<AccountPage />} />
           </Route>
 
+          {/* Seat booking */}
           <Route
             path="/booking/:showId/seats"
             element={
@@ -89,6 +95,7 @@ export default function App() {
             <Route index element={<SeatSelectionPage />} />
           </Route>
 
+          {/* Booking confirmation */}
           <Route
             path="/booking/confirmation"
             element={
@@ -100,6 +107,7 @@ export default function App() {
             <Route index element={<BookingConfirmationPage />} />
           </Route>
 
+          {/* Customer dashboard */}
           <Route
             path="/dashboard/customer"
             element={
@@ -109,10 +117,21 @@ export default function App() {
             }
           >
             <Route index element={<CustomerDashboard />} />
-            <Route path="bookings" element={<CustomerBookingsPage />} />
-            <Route path="history" element={<CustomerHistoryPage />} />
+            <Route
+              path="bookings"
+              element={<CustomerBookingsPage />}
+            />
+            <Route
+              path="history"
+              element={<CustomerHistoryPage />}
+            />
+            <Route
+              path="security-awareness"
+              element={<SecurityAwareness />}
+            />
           </Route>
 
+          {/* Admin dashboard */}
           <Route
             path="/dashboard/admin"
             element={
@@ -130,14 +149,30 @@ export default function App() {
             <Route path="security" element={<AdminSecurityPage />} />
           </Route>
 
+          {/* Theater owner dashboard */}
+          <Route
+            path="/dashboard/owner"
+            element={
+              <ProtectedRoute roles={['owner']}>
+                <DashboardLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Navigate to="theaters" replace />} />
+            {/* Existing owner routes can be added here if implemented. */}
+          </Route>
+
+          {/* Default dashboard redirect */}
           <Route
             path="/dashboard"
             element={<Navigate to="/dashboard/customer" replace />}
           />
 
+          {/* Not found */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
   );
 }
+
