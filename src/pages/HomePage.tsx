@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   CalendarDays,
+  ChevronLeft,
   ChevronRight,
   Clock3,
   Film,
   Play,
   Sparkles,
-  Star,
   Ticket,
 } from 'lucide-react';
 
@@ -26,6 +26,7 @@ interface Movie {
   duration_minutes: number | null;
   certificate: string | null;
   release_date: string | null;
+  status?: string | null;
 }
 
 interface Show {
@@ -251,6 +252,7 @@ function EmptyMovieState({ message }: { message: string }) {
 export function HomePage() {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [shows, setShows] = useState<Show[]>([]);
+  const [selectedMovieIndex, setSelectedMovieIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -272,7 +274,8 @@ export function HomePage() {
               language,
               duration_minutes,
               certificate,
-              release_date
+              release_date,
+              status
             `)
             .order('release_date', { ascending: false }),
 
@@ -333,40 +336,49 @@ export function HomePage() {
     };
   }, []);
 
+  // Build the Now Showing list from movie status first, then include any
+  // movies already connected to showtimes. This prevents the homepage from
+  // showing only one movie just because only one has a show row attached.
   const showingMovies = useMemo(() => {
-    const seen = new Set<string>();
-    const result: Movie[] = [];
+    const byId = new Map<string, Movie>();
+
+    movies
+      .filter((movie) => (movie.status || '').toLowerCase().replace(/[\s-]+/g, '_') === 'now_showing')
+      .forEach((movie) => byId.set(movie.id, movie));
 
     for (const show of shows) {
-      const movie = getMovieFromShow(show);
-
-      if (!movie || seen.has(movie.id)) {
-        continue;
-      }
-
-      seen.add(movie.id);
-      result.push(movie);
+      const movieFromShow = getMovieFromShow(show);
+      if (!movieFromShow) continue;
+      const fullMovie = movies.find((movie) => movie.id === movieFromShow.id);
+      byId.set(movieFromShow.id, fullMovie ? { ...movieFromShow, ...fullMovie } : movieFromShow);
     }
 
-    return result;
-  }, [shows]);
+    return Array.from(byId.values());
+  }, [movies, shows]);
 
   const upcomingMovies = useMemo(() => {
-    const showingIds = new Set(
-      showingMovies.map((movie) => movie.id),
-    );
+    const showingIds = new Set(showingMovies.map((movie) => movie.id));
 
     return movies
-      .filter((movie) => !showingIds.has(movie.id))
+      .filter((movie) => !showingIds.has(movie.id) && (movie.status || '').toLowerCase().replace(/[\s-]+/g, '_') !== 'now_showing')
       .slice(0, 6);
   }, [movies, showingMovies]);
 
-  const featuredMovie =
-    showingMovies[0] || movies[0] || null;
+  const featuredMovie = showingMovies[selectedMovieIndex] || showingMovies[0] || movies[0] || null;
 
+  // Only allow booking for a future show that is still scheduled.
+  // Never send users to seat selection for an expired or cancelled show.
   const featuredShow = shows.find(
-    (show) => show.movie_id === featuredMovie?.id,
-  );
+    (show) =>
+      show.movie_id === featuredMovie?.id &&
+      new Date(show.start_time).getTime() >= Date.now() &&
+      (show.status || '').toLowerCase() === 'scheduled',
+  ) || null;
+
+  const changeFeaturedMovie = (direction: -1 | 1) => {
+    if (showingMovies.length < 2) return;
+    setSelectedMovieIndex((current) => (current + direction + showingMovies.length) % showingMovies.length);
+  };
 
   const featuredDescription =
     featuredMovie?.description ||
@@ -383,173 +395,129 @@ export function HomePage() {
   return (
     <div className="animate-fadeIn overflow-hidden">
 
-      {/* HERO */}
-      <section className="relative min-h-[600px] overflow-hidden border-b border-white/5">
+      {/* CINEMATIC FEATURED MOVIE HERO */}
+      <section className="relative isolate min-h-[640px] overflow-hidden border-b border-white/5 bg-ink-950 sm:min-h-[680px] lg:min-h-[720px]">
+        {/* Soft ambient light behind the artwork */}
         {featuredMovie?.poster_url && (
-          <div className="absolute inset-0">
+          <div className="pointer-events-none absolute inset-y-0 right-0 -z-20 w-full overflow-hidden sm:w-[62%]">
             <img
+              key={`${featuredMovie.id}-ambient`}
               src={featuredMovie.poster_url}
               alt=""
               aria-hidden="true"
-              className="h-full w-full scale-110 object-cover opacity-25 blur-2xl"
+              className="absolute inset-0 h-full w-full scale-110 object-cover object-center opacity-35 blur-3xl"
             />
+            <div className="absolute inset-0 bg-gradient-to-l from-transparent via-ink-950/20 to-ink-950" />
           </div>
         )}
 
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_35%,rgba(37,99,235,0.24),transparent_40%)]" />
+        {/* Main poster: rounded edges, full brightness, contained in its own frame */}
+        {featuredMovie?.poster_url && (
+          <div className="pointer-events-none absolute right-[3.5%] top-1/2 z-0 h-[78%] max-h-[620px] w-[42%] -translate-y-1/2 overflow-hidden rounded-[28px] bg-ink-900 shadow-2xl shadow-black/40 ring-1 ring-white/10 sm:rounded-[32px] lg:right-[3.8%] lg:h-[82%] lg:w-[40%]">
+            <img
+              key={`${featuredMovie.id}-hero-poster`}
+              src={featuredMovie.poster_url}
+              alt={`${featuredMovie.title} poster`}
+              className="h-full w-full object-cover object-center opacity-100 transition-opacity duration-500"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-black/5" />
+          </div>
+        )}
 
-        <div className="absolute inset-0 bg-gradient-to-r from-[#050914] via-[#07101f]/95 to-[#050914]/75" />
+        {/* Fade the artwork naturally into the text side without dimming the poster itself */}
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-r from-ink-950 via-ink-950/95 via-[43%] to-transparent" />
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-t from-ink-950/45 via-transparent to-ink-950/20" />
 
-        <div className="absolute inset-0 bg-gradient-to-t from-[#050914] via-transparent to-[#050914]/30" />
-
-        <div className="container-max section-pad relative flex min-h-[600px] items-center py-16">
+        <div className="container-max section-pad relative z-10 flex min-h-[640px] items-center py-16 sm:min-h-[680px] sm:py-20 lg:min-h-[720px]">
           {featuredMovie ? (
-            <div className="grid w-full items-center gap-12 lg:grid-cols-[1fr_300px]">
+            <div className="w-full min-w-0 max-w-[54%] pb-10 pt-4 pl-14 sm:pl-16 lg:max-w-[52%] lg:pl-14">
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/20 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-ink-200 backdrop-blur-sm">
+                <Sparkles className="h-3.5 w-3.5" />
+                Now showing
+              </div>
 
-              <div className="max-w-2xl">
-                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary-400/20 bg-primary-500/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-primary-300 backdrop-blur-sm">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Now showing
-                </div>
+              <h1
+                key={featuredMovie.id}
+                className="max-w-full break-words animate-fadeIn font-display text-4xl font-bold tracking-tight text-ink-50 sm:text-5xl lg:text-6xl xl:text-6xl 2xl:text-7xl"
+              >
+                {featuredMovie.title}
+              </h1>
 
-                <h1 className="font-display text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
-                  {featuredMovie.title}
-                </h1>
+              <div className="mt-5 flex max-w-2xl flex-wrap items-center gap-x-3 gap-y-2 text-sm text-ink-300 sm:text-base">
+                {getGenre(featuredMovie) && <span>{getGenre(featuredMovie)}</span>}
+                {featuredMovie.language && <><span className="h-1 w-1 rounded-full bg-white/30" /><span>{featuredMovie.language}</span></>}
+                {featuredMovie.duration_minutes && <><span className="h-1 w-1 rounded-full bg-white/30" /><span>{formatDuration(featuredMovie.duration_minutes)}</span></>}
+                {featuredMovie.certificate && <><span className="h-1 w-1 rounded-full bg-white/30" /><span className="rounded-md border border-white/15 bg-black/20 px-2 py-0.5 text-xs">{featuredMovie.certificate}</span></>}
+              </div>
 
-                <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-ink-300">
-                  {getGenre(featuredMovie) && (
-                    <span>{getGenre(featuredMovie)}</span>
-                  )}
+              <p className="mt-6 max-w-xl text-base leading-7 text-ink-300 sm:text-lg sm:leading-8">
+                {featuredMovie.description || 'Experience the latest movies on the big screen. Choose a showtime and book your seats in a few clicks.'}
+              </p>
 
-                  {featuredMovie.language && (
-                    <>
-                      <span className="h-1 w-1 rounded-full bg-white/30" />
-                      <span>{featuredMovie.language}</span>
-                    </>
-                  )}
-
-                  {featuredMovie.duration_minutes && (
-                    <>
-                      <span className="h-1 w-1 rounded-full bg-white/30" />
-                      <span>
-                        {formatDuration(featuredMovie.duration_minutes)}
-                      </span>
-                    </>
-                  )}
-
-                  {featuredMovie.certificate && (
-                    <>
-                      <span className="h-1 w-1 rounded-full bg-white/30" />
-                      <span>{featuredMovie.certificate}</span>
-                    </>
-                  )}
-                </div>
-
-                <p className="mt-5 max-w-xl text-base leading-7 text-ink-300 sm:text-lg">
-                  {featuredDescription}
-                </p>
-
-                {featuredShow && (
-                  <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-ink-300">
-                    <span className="flex items-center gap-2">
-                      <CalendarDays className="h-4 w-4 text-primary-400" />
-                      {formatDate(featuredShow.start_time)}
-                    </span>
-
-                    <span className="flex items-center gap-2">
-                      <Clock3 className="h-4 w-4 text-primary-400" />
-                      {new Date(
-                        featuredShow.start_time,
-                      ).toLocaleTimeString('en-IN', {
-                        hour: 'numeric',
-                        minute: '2-digit',
-                      })}
-                    </span>
-
-                    {featuredShow.format && (
-                      <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs">
-                        {featuredShow.format}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                <div className="mt-8 flex flex-wrap gap-3">
-                  <Link
-                    to={
-                      featuredShow
-                        ? `/booking/${featuredShow.id}/seats`
-                        : `/movies/${featuredMovie.id}`
-                    }
-                  >
+              <div className="mt-8 flex flex-wrap gap-3">
+                {featuredShow ? (
+                  <Link to={`/booking/${featuredShow.id}/seats`}>
                     <Button size="lg">
                       <Ticket className="h-4 w-4" />
                       Book tickets
                     </Button>
                   </Link>
-
+                ) : (
                   <Link to={`/movies/${featuredMovie.id}`}>
                     <Button size="lg" variant="outline">
-                      <Play className="h-4 w-4" />
+                      <Ticket className="h-4 w-4" />
                       View movie
                     </Button>
                   </Link>
-                </div>
+                )}
+                <Link to={`/movies/${featuredMovie.id}`}>
+                  <Button size="lg" variant="outline"><Play className="h-4 w-4" />View movie</Button>
+                </Link>
               </div>
-
-              {/* FEATURED POSTER */}
-              <Link
-                to={`/movies/${featuredMovie.id}`}
-                className="group relative mx-auto hidden w-full max-w-[300px] lg:block"
-              >
-                <div className="absolute -inset-4 rounded-[2rem] bg-primary-500/20 opacity-40 blur-2xl transition group-hover:opacity-60" />
-
-                <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-white/10 bg-slate-900 shadow-2xl">
-                  <MoviePoster
-                    movie={featuredMovie}
-                    className="transition duration-700 group-hover:scale-105"
-                  />
-
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-
-                  <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-                    {featuredMovie.certificate && (
-                      <span className="rounded-md bg-black/50 px-2.5 py-1 text-xs font-medium text-white backdrop-blur">
-                        {featuredMovie.certificate}
-                      </span>
-                    )}
-
-                    <span className="ml-auto flex items-center gap-1 rounded-md bg-black/50 px-2.5 py-1 text-xs text-white backdrop-blur">
-                      <Star className="h-3.5 w-3.5 fill-current text-yellow-400" />
-                      Featured
-                    </span>
-                  </div>
-                </div>
-              </Link>
             </div>
           ) : (
-            <div className="mx-auto max-w-2xl text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
-                <Film className="h-8 w-8 text-primary-400" />
-              </div>
-
-              <h1 className="mt-6 font-display text-4xl font-bold text-white sm:text-5xl">
-                Your next movie awaits
-              </h1>
-
-              <p className="mt-4 text-ink-300">
-                Movies and showtimes will appear here when they are available.
-              </p>
-
-              <Link to="/movies" className="mt-7 inline-block">
-                <Button size="lg">
-                  Explore movies
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
+            <div className="mx-auto max-w-2xl py-12 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5"><Film className="h-8 w-8 text-ink-300" /></div>
+              <h1 className="mt-6 font-display text-4xl font-bold text-ink-50 sm:text-5xl">Your next movie awaits</h1>
+              <p className="mt-4 text-ink-300">Movies and showtimes will appear here when they are available.</p>
+              <Link to="/movies" className="mt-7 inline-block"><Button size="lg">Explore movies<ArrowRight className="h-4 w-4" /></Button></Link>
             </div>
           )}
         </div>
+
+        {/* Arrows sit at opposite screen edges, aligned on the same horizontal axis */}
+        {showingMovies.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={() => changeFeaturedMovie(-1)}
+              aria-label="Previous movie"
+              className="absolute left-3 top-1/2 z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white backdrop-blur-sm transition hover:bg-black/75 focus:outline-none focus:ring-2 focus:ring-white/60 sm:left-4 sm:h-12 sm:w-12 lg:left-5"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+            <button
+              type="button"
+              onClick={() => changeFeaturedMovie(1)}
+              aria-label="Next movie"
+              className="absolute right-3 top-1/2 z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white backdrop-blur-sm transition hover:bg-black/75 focus:outline-none focus:ring-2 focus:ring-white/60 sm:right-4 sm:h-12 sm:w-12 lg:right-5"
+            >
+              <ChevronRight className="h-6 w-6" />
+            </button>
+            <div className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2" aria-label={`Movie ${selectedMovieIndex + 1} of ${showingMovies.length}`}>
+              {showingMovies.slice(0, 8).map((movie, index) => (
+                <button
+                  key={movie.id}
+                  type="button"
+                  onClick={() => setSelectedMovieIndex(index)}
+                  aria-label={`Show ${movie.title}`}
+                  aria-pressed={movie.id === featuredMovie?.id}
+                  className={`h-2 rounded-full transition-all duration-300 ${movie.id === featuredMovie?.id ? 'w-7 bg-white' : 'w-2 bg-white/45 hover:bg-white/80'}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </section>
 
       {/* NOW SHOWING */}
