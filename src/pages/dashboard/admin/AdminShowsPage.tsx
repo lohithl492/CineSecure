@@ -584,14 +584,15 @@ export function AdminShowsPage() {
                 </Field>
 
                 <Field label="Show date">
-                  <input
-                    type="date"
-                    value={form.date}
-                    onChange={(event) => updateForm('date', event.target.value)}
-                    className={inputClassName()}
-                    required
-                  />
-                </Field>
+  <input
+    type="date"
+    value={form.date}
+    min={new Date().toLocaleDateString('en-CA')}
+    onChange={(event) => updateForm('date', event.target.value)}
+    className={inputClassName()}
+    required
+  />
+</Field>
 
                 {editingId && <Field label="Start time">
                   <input

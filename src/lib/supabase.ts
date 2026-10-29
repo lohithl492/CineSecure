@@ -1,3 +1,4 @@
+
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { APP_CONFIG } from '@/constants/config';
 
@@ -20,7 +21,7 @@ export const supabase: SupabaseClient = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      storage: sessionStorage,
+      storage: localStorage,
       storageKey: `${APP_CONFIG.name.toLowerCase()}-auth`,
     },
   }
