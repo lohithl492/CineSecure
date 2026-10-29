@@ -15,16 +15,14 @@ type LoginLocationState = {
   from?: string;
 };
 
-function getRoleDashboard(
-  role: 'customer' | 'owner' | 'admin'
-) {
+type UserRole = 'customer' | 'owner' | 'admin';
+
+function getRoleDashboard(role: UserRole) {
   switch (role) {
     case 'admin':
       return '/dashboard/admin';
-
     case 'owner':
       return '/dashboard/owner';
-
     case 'customer':
     default:
       return '/dashboard/customer';
@@ -33,16 +31,17 @@ function getRoleDashboard(
 
 function isAllowedDestination(
   path: string | undefined,
-  role: 'customer' | 'owner' | 'admin'
+  role: UserRole
 ) {
-  if (!path) {
+  if (!path || !path.startsWith('/')) {
     return false;
   }
 
-  /*
-   * Never allow an authenticated user to be redirected
-   * into another role's dashboard.
-   */
+  // Reject external URLs and protocol-relative URLs.
+  if (path.startsWith('//') || path.includes('\\')) {
+    return false;
+  }
+
   if (role === 'admin') {
     return path.startsWith('/dashboard/admin');
   }
@@ -51,9 +50,6 @@ function isAllowedDestination(
     return path.startsWith('/dashboard/owner');
   }
 
-  /*
-   * Customers may return to customer pages or booking flow.
-   */
   if (role === 'customer') {
     return (
       path.startsWith('/dashboard/customer') ||
@@ -72,12 +68,8 @@ export function LoginPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [error, setError] =
-    useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const from = (
     location.state as LoginLocationState | null
@@ -95,55 +87,59 @@ export function LoginPage() {
     setError(null);
     setLoading(true);
 
-    const normalizedEmail =
-      email.trim().toLowerCase();
+    const normalizedEmail = email.trim().toLowerCase();
 
     try {
-      /*
-       * signIn now returns the complete application
-       * user including the database role.
-       */
       const signedInUser = await signIn(
         normalizedEmail,
         password
       );
 
-      /*
-       * Use the actual role returned from public.profiles.
-       *
-       * This is important because React state updates
-       * are asynchronous. We should not depend on
-       * user from useAuth() immediately after signIn().
-       */
-      const destination =
-        isAllowedDestination(
-          from,
-          signedInUser.role
-        )
-          ? from!
-          : getRoleDashboard(
-              signedInUser.role
-            );
+      // Record the successful login on the server.
+      // Do not let an audit failure prevent sign-in.
+      try {
+        await logSecurityEvent(
+          'login_success',
+          'Login successful',
+          'low',
+          {
+            role: signedInUser.role,
+          }
+        );
+      } catch (auditError) {
+        console.error(
+          'Failed to record successful login audit event:',
+          auditError
+        );
+      }
 
-      logSecurityEvent(
-        'booking_created',
-        'Login successful',
-        'low',
-        {
-          email: normalizedEmail,
-          userId: signedInUser.id,
-          role: signedInUser.role,
-        }
-      );
+      const destination = isAllowedDestination(
+        from,
+        signedInUser.role
+      )
+        ? from!
+        : getRoleDashboard(signedInUser.role);
 
-      navigate('/', {
-  replace: true,
-});
+      navigate(destination, { replace: true });
     } catch (err) {
-      console.error(
-        'Login failed:',
-        err
-      );
+      console.error('Login failed:', err);
+
+      // Record the failed login without storing the password.
+      try {
+        await logSecurityEvent(
+          'login_failed',
+          'Login attempt failed',
+          'medium',
+          {
+            reason: 'authentication_failed',
+          }
+        );
+      } catch (auditError) {
+        console.error(
+          'Failed to record unsuccessful login audit event:',
+          auditError
+        );
+      }
 
       const message =
         err instanceof Error
@@ -167,7 +163,6 @@ export function LoginPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-400">
             CineSecure
           </p>
-
           <p className="text-xs text-ink-500">
             Movie ticket booking
           </p>
@@ -192,13 +187,9 @@ export function LoginPage() {
           name="email"
           autoComplete="email"
           placeholder="you@example.com"
-          icon={
-            <Mail className="h-4 w-4" />
-          }
+          icon={<Mail className="h-4 w-4" />}
           value={email}
-          onChange={(event) =>
-            setEmail(event.target.value)
-          }
+          onChange={(event) => setEmail(event.target.value)}
           required
           disabled={loading}
         />
@@ -209,13 +200,9 @@ export function LoginPage() {
           name="password"
           autoComplete="current-password"
           placeholder="••••••••"
-          icon={
-            <Lock className="h-4 w-4" />
-          }
+          icon={<Lock className="h-4 w-4" />}
           value={password}
-          onChange={(event) =>
-            setPassword(event.target.value)
-          }
+          onChange={(event) => setPassword(event.target.value)}
           required
           disabled={loading}
         />
@@ -237,9 +224,7 @@ export function LoginPage() {
           disabled={loading}
         >
           <LogIn className="h-4 w-4" />
-          {loading
-            ? 'Signing in...'
-            : 'Sign in'}
+          {loading ? 'Signing in...' : 'Sign in'}
         </Button>
       </form>
 

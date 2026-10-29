@@ -1,6 +1,11 @@
+
 export type UserRole = 'customer' | 'owner' | 'admin';
 
-export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'unauthenticated';
+export type AuthStatus =
+  | 'idle'
+  | 'loading'
+  | 'authenticated'
+  | 'unauthenticated';
 
 export interface User {
   id: string;
@@ -74,7 +79,11 @@ export interface Seat {
   price: number;
 }
 
-export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'failed';
+export type BookingStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'cancelled'
+  | 'failed';
 
 export interface Booking {
   id: string;
@@ -104,20 +113,28 @@ export interface Payment {
   createdAt: string;
 }
 
+export type SecurityEventType =
+  | 'login_success'
+  | 'login_failed'
+  | 'user_registered'
+  | 'logout'
+  | 'failed_login'
+  | 'blocked_ip'
+  | 'rate_limited'
+  | 'jwt_failure'
+  | 'rbac_denied'
+  | 'booking_created'
+  | 'payment_success'
+  | 'payment_failed'
+  | 'user_blocked'
+  | 'seat_lock';
+
+export type SecuritySeverity = 'low' | 'medium' | 'high' | 'critical';
+
 export interface SecurityLog {
   id: string;
-  eventType:
-    | 'failed_login'
-    | 'blocked_ip'
-    | 'rate_limited'
-    | 'jwt_failure'
-    | 'rbac_denied'
-    | 'booking_created'
-    | 'payment_success'
-    | 'payment_failed'
-    | 'user_blocked'
-    | 'seat_lock';
-  severity: 'low' | 'medium' | 'high' | 'critical';
+  eventType: SecurityEventType;
+  severity: SecuritySeverity;
   message: string;
   ip?: string;
   userId?: string;
