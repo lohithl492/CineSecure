@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+
 import {
   Mail,
   Lock,
@@ -11,69 +12,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button, Input } from '@/components/ui';
 import { logSecurityEvent } from '@/utils/securityLog';
 
-type LoginLocationState = {
-  from?: string;
-};
-
-type UserRole = 'customer' | 'owner' | 'admin';
-
-function getRoleDashboard(role: UserRole) {
-  switch (role) {
-    case 'admin':
-      return '/dashboard/admin';
-    case 'owner':
-      return '/dashboard/owner';
-    case 'customer':
-    default:
-      return '/dashboard/customer';
-  }
-}
-
-function isAllowedDestination(
-  path: string | undefined,
-  role: UserRole
-) {
-  if (!path || !path.startsWith('/')) {
-    return false;
-  }
-
-  // Reject external URLs and protocol-relative URLs.
-  if (path.startsWith('//') || path.includes('\\')) {
-    return false;
-  }
-
-  if (role === 'admin') {
-    return path.startsWith('/dashboard/admin');
-  }
-
-  if (role === 'owner') {
-    return path.startsWith('/dashboard/owner');
-  }
-
-  if (role === 'customer') {
-    return (
-      path.startsWith('/dashboard/customer') ||
-      path.startsWith('/booking/')
-    );
-  }
-
-  return false;
-}
-
 export function LoginPage() {
   const { signIn } = useAuth();
-
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const from = (
-    location.state as LoginLocationState | null
-  )?.from;
 
   async function handleSubmit(
     event: React.FormEvent<HTMLFormElement>
@@ -95,8 +41,7 @@ export function LoginPage() {
         password
       );
 
-      // Record the successful login on the server.
-      // Do not let an audit failure prevent sign-in.
+      // Record successful login.
       try {
         await logSecurityEvent(
           'login_success',
@@ -113,18 +58,13 @@ export function LoginPage() {
         );
       }
 
-      const destination = isAllowedDestination(
-        from,
-        signedInUser.role
-      )
-        ? from!
-        : getRoleDashboard(signedInUser.role);
+      // Redirect to Home after successful login.
+      navigate('/', { replace: true });
 
-      navigate(destination, { replace: true });
     } catch (err) {
       console.error('Login failed:', err);
 
-      // Record the failed login without storing the password.
+      // Record failed login without storing the password.
       try {
         await logSecurityEvent(
           'login_failed',
@@ -147,6 +87,7 @@ export function LoginPage() {
           : 'Unable to sign in. Check your email and password.';
 
       setError(message);
+
     } finally {
       setLoading(false);
     }
